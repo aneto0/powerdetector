@@ -1,29 +1,43 @@
 #/usr/bin/python
-_copyright__ = """
+_copyright__ = '''
 Copyright 2020 Andre C. Neto
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the 'Software'), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-"""
-__license__ = "MIT"
-__author__ = "Andre C. Neto"
-__date__ = "01/06/2020"
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+'''
+__license__ = 'MIT'
+__author__ = 'Andre C. Neto'
+__date__ = '01/06/2020'
 
 import argparse
 import logging
+import logging.handlers
 import odroid_wiringpi as wpi
 import smtplib, ssl
 import time
 
 from enum import Enum
 
+#Configure the logging format
+dateFormat = '%Y-%m-%d %H:%M:%S'
+loggingFormat = logging.Formatter(fmt='[%(asctime)s] [%(levelname)s] [%(process)d] [%(filename)s:%(lineno)d] %(message)s', datefmt=dateFormat)
+
 #Configure the logger
-logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s] [%(levelname)s] [%(process)d] [%(filename)s:%(lineno)d] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-logger = logging.getLogger("{0}".format(__name__))
-logger.setLevel(logging.DEBUG)
+logger = logging.getLogger('{0}'.format(__name__))
+
+#Console handler
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(loggingFormat)
+
+#Syslog handler
+syslogHandler = logging.handlers.SysLogHandler('/dev/log')
+syslogHandler.setFormatter(loggingFormat)
+
+logger.addHandler(consoleHandler)
+logger.addHandler(syslogHandler)
 
 #Possible application states
 class AlarmState(Enum):
@@ -104,7 +118,7 @@ class EMailAlarmHandler(AlarmHandler):
             logger.critical('Failed to send e-mail {0}'.format(e))
         
 def monitor(adcNumber, readPeriodState, alarmMinVoltage, alarmNTriggers, alarmHandlers, infoPeriod):
-    msg = "Going to read from ADC {0} with a period of {1} seconds. The minimum voltage to trigger an alarm is: {2} and {3} alarms are required to trigger an alarm event".format(adcNumber, readPeriodState, alarmMinVoltage, alarmNTriggers)
+    msg = 'Going to read from ADC {0} with a period of {1} seconds. The minimum voltage to trigger an alarm is: {2} and {3} alarms are required to trigger an alarm event'.format(adcNumber, readPeriodState, alarmMinVoltage, alarmNTriggers)
     for handler in alarmHandlers:
         handler.trigger(msg, logging.INFO)
     logger.debug(msg)
@@ -129,18 +143,18 @@ def monitor(adcNumber, readPeriodState, alarmMinVoltage, alarmNTriggers, alarmHa
         readPeriod = readPeriodState
         adcVal = wpi.analogRead(adcNumber)
         adcValVolts = adcVal * ADC_SCALE_TO_V
-        statusMsg = "State: {0} - read from ADC {1} value {2} => {3} (number of alarms to trigger: {4})".format(alarmState, adcNumber, adcVal, adcValVolts, numberOfAlarmsLeftToTrigger)
+        statusMsg = 'State: {0} - read from ADC {1} value {2} => {3} (number of alarms to trigger: {4})'.format(alarmState, adcNumber, adcVal, adcValVolts, numberOfAlarmsLeftToTrigger)
         logger.debug(statusMsg)
         if (alarmState == AlarmState.OK):
             if (adcValVolts < alarmMinVoltage):
-                logger.warning("Read voltage is less than the minimum voltage: {0} < {1}".format(adcValVolts, alarmMinVoltage))
+                logger.warning('Read voltage is less than the minimum voltage: {0} < {1}'.format(adcValVolts, alarmMinVoltage))
                 #Force a faster refresh
                 readPeriod = 1
                 numberOfAlarmsLeftToTrigger = numberOfAlarmsLeftToTrigger - 1
                 if (numberOfAlarmsLeftToTrigger < 1):
                     alarmState = AlarmState.ALARM
                     for handler in alarmHandlers:
-                        statusMsg = "State: {0} - read from ADC {1} value {2} => {3} (number of alarms to trigger: {4})".format(alarmState, adcNumber, adcVal, adcValVolts, numberOfAlarmsLeftToTrigger)
+                        statusMsg = 'State: {0} - read from ADC {1} value {2} => {3} (number of alarms to trigger: {4})'.format(alarmState, adcNumber, adcVal, adcValVolts, numberOfAlarmsLeftToTrigger)
                         handler.trigger(statusMsg, logging.CRITICAL)
             else:
                 #The alarms must be consecutive
@@ -150,7 +164,7 @@ def monitor(adcNumber, readPeriodState, alarmMinVoltage, alarmNTriggers, alarmHa
                 #Reset if still in alarm. The recovery must be consecutive
                 numberOfAlarmsLeftToTrigger = 0
             else:
-                logger.warning("Read voltage is greater than the minimum voltage: {0} >= {1}".format(adcValVolts, alarmMinVoltage))
+                logger.warning('Read voltage is greater than the minimum voltage: {0} >= {1}'.format(adcValVolts, alarmMinVoltage))
                 numberOfAlarmsLeftToTrigger = numberOfAlarmsLeftToTrigger + 1
                 if (numberOfAlarmsLeftToTrigger >= alarmNTriggers):
                     alarmState = AlarmState.OK
@@ -163,20 +177,27 @@ def monitor(adcNumber, readPeriodState, alarmMinVoltage, alarmNTriggers, alarmHa
             logger.info('Going to trigger next information alarm at {0}'.format(time.strftime('%d %b %Y %H:%M:%S', time.gmtime(nextInfoTrigger))))
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description = "Measure the power on the defined ADC and trigger an alarm if the power is lower than a given value")
-    parser.add_argument("-a", "--adc", type=int, default=1, help="ADC #")
-    parser.add_argument("-p", "--period", type=float, default=2, help="Period at which the ADC value is read")
-    parser.add_argument("-am", "--alarm_min", type=float, help="A measured voltage (in Volts) under this value is considered an alarming voltage", default = 0.7)
-    parser.add_argument("-at", "--alarm_tri", type=int, help="An alarm is triggered if N consecutive alarming voltages are detected", default = 1)
-    parser.add_argument("-eu", "--email_user", type=str, required=True, help="email username")
-    parser.add_argument("-ep", "--email_pass", type=str, required=True, help="email password")
-    parser.add_argument("-ed", "--email_dest", type=str, required=True, help="email destination")
-    parser.add_argument("-ip", "--info_period", type=int, default=(3600 * 12), help="Send information (and heartbeat) with the current information every args.info_period seconds (even if no alarm was triggered)")
-    parser.add_argument("-bp", "--buzzer_pin", type=int, default=27, help="Buzzer wiringpi pin")
-    parser.add_argument("-bd", "--buzzer_duration", type=int, default=30, help="Buzzer alarm duration")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description = 'Measure the power on the defined ADC and trigger an alarm if the power is lower than a given value')
+    parser.add_argument('-a', '--adc', type=int, default=1, help='ADC #')
+    parser.add_argument('-p', '--period', type=float, default=2, help='Period at which the ADC value is read')
+    parser.add_argument('-am', '--alarm_min', type=float, help='A measured voltage (in Volts) under this value is considered an alarming voltage', default = 0.7)
+    parser.add_argument('-at', '--alarm_tri', type=int, help='An alarm is triggered if N consecutive alarming voltages are detected', default = 1)
+    parser.add_argument('-eu', '--email_user', type=str, required=True, help='email username')
+    parser.add_argument('-ep', '--email_pass', type=str, required=True, help='email password')
+    parser.add_argument('-ed', '--email_dest', type=str, required=True, help='email destination')
+    parser.add_argument('-ip', '--info_period', type=int, default=(3600 * 12), help='Send information (and heartbeat) with the current information every args.info_period seconds (even if no alarm was triggered)')
+    parser.add_argument('-bp', '--buzzer_pin', type=int, default=27, help='Buzzer wiringpi pin')
+    parser.add_argument('-bd', '--buzzer_duration', type=int, default=30, help='Buzzer alarm duration')
+    logLevels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+    parser.add_argument('-ll', '--log_level', type=str, default='INFO', help='Log level', choices = logLevels)
 
     args = parser.parse_args()
+    loggingCriticalities = {'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'WARNING': logging.WARNING, 'ERROR': logging.ERROR, 'CRITICAL': logging.CRITICAL}
+    logger.setLevel(loggingCriticalities[args.log_level])
+    consoleHandler.setLevel(loggingCriticalities[args.log_level])
+    syslogHandler.setLevel(loggingCriticalities[args.log_level])
+
     alarmNTriggers = 1
     if (args.alarm_tri > 1):
         alarmNTriggers = args.alarm_tri
